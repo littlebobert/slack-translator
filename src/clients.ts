@@ -1,0 +1,108 @@
+import type { PushInput } from "./types.js";
+
+interface FetchOptions {
+  timeoutMs: number;
+  retries?: number;
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  options: FetchOptions,
+): Promise<Response> {
+  const retries = options.retries ?? 2;
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        ...init,
+        signal: AbortSignal.timeout(options.timeoutMs),
+      });
+      if (response.ok || (response.status < 500 && response.status !== 429)) return response;
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt < retries) await sleep(250 * 2 ** attempt);
+  }
+  throw lastError instanceof Error ? lastError : new Error("Request failed");
+}
+
+async function slackApi<T extends Record<string, unknown>>(
+  method: string,
+  token: string,
+  params: URLSearchParams,
+  timeoutMs: number,
+): Promise<T> {
+  const response = await fetchWithRetry(`https://slack.com/api/${method}?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  }, { timeoutMs });
+  const result = await response.json() as T & { ok?: boolean; error?: string };
+  if (!response.ok || result.ok !== true) {
+    throw new Error(`Slack ${method} failed: ${result.error ?? response.status}`);
+  }
+  return result;
+}
+
+export async function getSlackPermalink(
+  token: string,
+  channelId: string,
+  messageTs: string,
+  timeoutMs: number,
+): Promise<string | undefined> {
+  const result = await slackApi<{ permalink?: string }>(
+    "chat.getPermalink",
+    token,
+    new URLSearchParams({ channel: channelId, message_ts: messageTs }),
+    timeoutMs,
+  );
+  return result.permalink;
+}
+
+export class SlackUserCache {
+  private readonly entries = new Map<string, { name: string; expiresAt: number }>();
+
+  constructor(
+    private readonly token: string,
+    private readonly timeoutMs: number,
+    private readonly ttlMs = 15 * 60_000,
+  ) {}
+
+  async getDisplayName(userId: string): Promise<string | undefined> {
+    const cached = this.entries.get(userId);
+    if (cached && cached.expiresAt > Date.now()) return cached.name;
+    const result = await slackApi<{
+      user?: { real_name?: string; name?: string; profile?: { display_name?: string; real_name?: string } };
+    }>("users.info", this.token, new URLSearchParams({ user: userId }), this.timeoutMs);
+    const user = result.user;
+    const name = user?.profile?.display_name || user?.profile?.real_name || user?.real_name || user?.name;
+    if (name) this.entries.set(userId, { name, expiresAt: Date.now() + this.ttlMs });
+    return name;
+  }
+}
+
+export async function sendPushover(
+  appToken: string,
+  userKey: string,
+  input: PushInput,
+  timeoutMs: number,
+): Promise<void> {
+  const body = new URLSearchParams({
+    token: appToken,
+    user: userKey,
+    title: input.title,
+    message: input.message,
+    ...(input.url ? { url: input.url } : {}),
+    ...(input.urlTitle ? { url_title: input.urlTitle } : {}),
+  });
+  const response = await fetchWithRetry("https://api.pushover.net/1/messages.json", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  }, { timeoutMs });
+  if (!response.ok) throw new Error(`Pushover delivery failed: HTTP ${response.status}`);
+  const result = await response.json() as { status?: number; errors?: string[] };
+  if (result.status !== 1) throw new Error("Pushover rejected the notification");
+}

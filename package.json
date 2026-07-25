@@ -1,0 +1,43 @@
+{
+  "name": "openclaw-slack-translation-relay",
+  "version": "0.1.0",
+  "description": "Silently translate Japanese Slack DMs and mentions and forward them through Pushover.",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "config/slack-app-manifest.json",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "prepack": "npm run build"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.5.17"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ],
+    "compat": {
+      "pluginApi": ">=2026.5.17",
+      "minGatewayVersion": "2026.5.17"
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "openclaw": "^2026.7.1-2",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}

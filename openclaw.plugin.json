@@ -1,0 +1,66 @@
+{
+  "id": "slack-translation-relay",
+  "name": "Slack Translation Relay",
+  "description": "Translates Japanese Slack DMs and mentions and forwards them to Pushover without replying in Slack.",
+  "uiHints": {
+    "slackUserId": {
+      "label": "Your Slack user ID",
+      "placeholder": "U0123456789"
+    },
+    "slackUserTokenEnv": {
+      "label": "Slack user token environment variable"
+    },
+    "pushoverUserKeyEnv": {
+      "label": "Pushover user key environment variable"
+    },
+    "pushoverAppTokenEnv": {
+      "label": "Pushover application token environment variable"
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["slackUserId"],
+    "properties": {
+      "slackUserId": {
+        "type": "string",
+        "pattern": "^U[A-Z0-9]+$"
+      },
+      "slackUserTokenEnv": {
+        "type": "string",
+        "default": "SLACK_USER_TOKEN"
+      },
+      "pushoverUserKeyEnv": {
+        "type": "string",
+        "default": "PUSHOVER_USER_KEY"
+      },
+      "pushoverAppTokenEnv": {
+        "type": "string",
+        "default": "PUSHOVER_APP_TOKEN"
+      },
+      "notificationTitle": {
+        "type": "string",
+        "maxLength": 250,
+        "default": "Slack translation"
+      },
+      "maxConcurrency": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 8,
+        "default": 2
+      },
+      "dedupeTtlSeconds": {
+        "type": "integer",
+        "minimum": 60,
+        "maximum": 86400,
+        "default": 3600
+      },
+      "requestTimeoutMs": {
+        "type": "integer",
+        "minimum": 1000,
+        "maximum": 60000,
+        "default": 10000
+      }
+    }
+  }
+}

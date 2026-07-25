@@ -6,6 +6,7 @@ export interface RelayConfig {
   notificationTitle: string;
   maxConcurrency: number;
   dedupeTtlSeconds: number;
+  presenceCacheSeconds: number;
   requestTimeoutMs: number;
 }
 

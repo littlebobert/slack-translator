@@ -1,7 +1,7 @@
 {
   "name": "openclaw-slack-translation-relay",
   "version": "0.1.0",
-  "description": "Silently translate Japanese Slack DMs and mentions and forward them through Pushover.",
+  "description": "Forward Slack DMs and mentions through Pushover while away, translating Japanese messages.",
   "type": "module",
   "license": "MIT",
   "files": [

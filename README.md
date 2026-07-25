@@ -1,6 +1,6 @@
 # Slack Translation Relay
 
-An OpenClaw plugin for a Mac mini that watches Slack as an approved user identity, translates Japanese DMs and channel mentions with OpenClaw's configured model, and forwards the result to Pushover. Notifications include a link to the exact Slack message. The plugin never replies in Slack.
+An OpenClaw plugin for a Mac mini that watches Slack as an approved user identity. While Slack reports you active, it stays quiet. While Slack reports you away, it forwards DMs and channel mentions to Pushover, translating Japanese messages with OpenClaw's configured model and passing other languages through unchanged. Notifications include a link to the exact Slack message. The plugin never replies in Slack.
 
 ## Security and workspace approval
 
@@ -73,9 +73,10 @@ Add the plugin entry to `~/.openclaw/openclaw.json`:
           slackUserTokenEnv: "SLACK_USER_TOKEN",
           pushoverUserKeyEnv: "PUSHOVER_USER_KEY",
           pushoverAppTokenEnv: "PUSHOVER_APP_TOKEN",
-          notificationTitle: "Slack translation",
+          notificationTitle: "Slack while away",
           maxConcurrency: 2,
           dedupeTtlSeconds: 3600,
+          presenceCacheSeconds: 30,
           requestTimeoutMs: 10000,
         },
       },
@@ -105,12 +106,14 @@ openclaw plugins inspect slack-translation-relay --runtime --json
 A notification is sent only when all of these are true:
 
 - the inbound provider is Slack;
+- Slack's `users.getPresence` API reports your account as `away`;
 - the sender is not your own Slack user ID;
 - the event is an ordinary message, not an edit, deletion, bot, or system event;
-- it is a DM to you, or a channel/private-channel message that mentions you;
-- the text contains Japanese Hiragana, Katakana, or Han characters.
+- it is a DM to you, or a channel/private-channel message that mentions you.
 
-The event is claimed silently so OpenClaw does not answer in Slack. Slack retries are deduplicated by conversation ID and message timestamp. Model, Slack API, and Pushover failures are retried with bounded timeouts. If translation fails, the plugin sends a short failure notification with the Slack link when available.
+Japanese text containing Hiragana, Katakana, or Han characters is translated into English. Other text is forwarded unchanged and does not invoke the model. Presence is cached for 30 seconds by default to limit Slack API traffic. Slack normally marks a desktop user away after roughly 10 minutes without activity; locking the desktop generally transitions mobile notification timing sooner.
+
+The event is claimed silently so OpenClaw does not answer in Slack. Slack retries are deduplicated by conversation ID and message timestamp. Model, Slack API, and Pushover failures are retried with bounded timeouts. If Japanese translation fails, the plugin sends a short failure notification with the Slack link when available. If the presence check fails, the plugin fails closed and sends no push, avoiding duplicate alerts while your state is unknown.
 
 Pushover messages are truncated to its 1,024-byte limit. Message bodies and credentials are never written to plugin logs.
 
@@ -118,15 +121,30 @@ Pushover messages are truncated to its 1,024-byte limit. Message bodies and cred
 
 After restarting OpenClaw, test these cases:
 
-1. Another user sends you a Japanese DM: one translated push arrives.
-2. Another user mentions you in Japanese in a channel: one translated push arrives.
-3. A Japanese channel message does not mention you: no push arrives.
-4. An English DM or mention arrives: no push arrives.
-5. Open the notification: Slack opens the exact original message.
-6. Restart the network briefly and confirm a retried Slack event produces at most one push.
+1. While Slack shows you active, receive a DM or mention: no Pushover notification arrives.
+2. Set your Slack availability to away for testing, then receive a Japanese DM: one translated push arrives.
+3. While away, receive an English DM: one unchanged push arrives without a model translation.
+4. While away, receive a Japanese channel mention: one translated push arrives.
+5. A channel message that does not mention you produces no push.
+6. Open the notification: Slack opens the exact original message.
+7. Restart the network briefly and confirm a retried Slack event produces at most one push.
+8. Return Slack availability to automatic when testing is complete.
+
+## Turn off Slack notifications on the phone
+
+Do this only after the validation checklist passes:
+
+1. Open Slack on the phone and tap your profile picture.
+2. Open **Notifications**.
+3. Turn **Mobile notifications** off for the workspace.
+4. Keep Pushover notifications enabled in iOS or Android settings.
+
+Slack does not expose an API that lets this plugin dynamically disable Slack's own mobile pushes. Disabling Slack mobile notifications avoids duplicates; Pushover becomes the away-mode notification channel, while the Slack app remains available for opening message links and replying.
 
 ## Troubleshooting
 
+- **No push while away:** confirm Slack actually shows your account as away. Automatic away normally takes about 10 minutes of desktop inactivity; manually choose away to test immediately.
+- **Unexpected push while at the laptop:** presence can remain cached for up to `presenceCacheSeconds` after Slack changes state. Reduce it to 5 seconds for testing, then use 30 seconds normally.
 - **No Slack events:** confirm the app uses user event subscriptions, Socket Mode is enabled, the `xapp` token has `connections:write`, and the app was reinstalled after scopes changed.
 - **`missing_scope`:** compare the installed app's user scopes with [`config/slack-app-manifest.json`](config/slack-app-manifest.json), then reinstall it.
 - **No translation:** verify OpenClaw's default agent has a working configured model.

@@ -44,9 +44,10 @@ export function normalizeConfig(raw: Record<string, unknown>): RelayConfig {
     slackUserTokenEnv: stringValue("slackUserTokenEnv", "SLACK_USER_TOKEN"),
     pushoverUserKeyEnv: stringValue("pushoverUserKeyEnv", "PUSHOVER_USER_KEY"),
     pushoverAppTokenEnv: stringValue("pushoverAppTokenEnv", "PUSHOVER_APP_TOKEN"),
-    notificationTitle: stringValue("notificationTitle", "Slack translation"),
+    notificationTitle: stringValue("notificationTitle", "Slack while away"),
     maxConcurrency: intValue("maxConcurrency", 2),
     dedupeTtlSeconds: intValue("dedupeTtlSeconds", 3600),
+    presenceCacheSeconds: intValue("presenceCacheSeconds", 30),
     requestTimeoutMs: intValue("requestTimeoutMs", 10_000),
   };
 }
@@ -80,7 +81,7 @@ export function toRelayMessage(
   message: InboundSlackMessage,
   slackUserId: string,
 ): RelayMessage | undefined {
-  if (!isTargetedMessage(message, slackUserId) || !containsJapanese(message.content)) return undefined;
+  if (!isTargetedMessage(message, slackUserId)) return undefined;
 
   const channelId = message.conversationId
     ?? metadataString(message.metadata, "channelId")
@@ -214,8 +215,9 @@ export async function processRelayMessage(
   message: RelayMessage,
   dependencies: RelayDependencies,
 ): Promise<void> {
+  const needsTranslation = containsJapanese(message.text);
   const [translationResult, permalinkResult, senderResult] = await Promise.allSettled([
-    dependencies.translate(message.text),
+    needsTranslation ? dependencies.translate(message.text) : Promise.resolve(message.text),
     dependencies.getPermalink(message.channelId, message.messageTs),
     dependencies.getSenderName(message.senderId),
   ]);
@@ -224,7 +226,7 @@ export async function processRelayMessage(
   const permalink = permalinkResult.status === "fulfilled" ? permalinkResult.value : undefined;
   const senderName = senderResult.status === "fulfilled" ? senderResult.value : undefined;
 
-  if (!translation) dependencies.log("warn", "Translation failed; sending a fallback notification");
+  if (needsTranslation && !translation) dependencies.log("warn", "Translation failed; sending a fallback notification");
   if (!permalink) dependencies.log("warn", "Slack permalink lookup failed; sending without a link");
 
   await dependencies.sendPush(buildPushInput(config, message, translation, permalink, senderName));

@@ -1,7 +1,7 @@
 {
   "id": "slack-translation-relay",
   "name": "Slack Translation Relay",
-  "description": "Translates Japanese Slack DMs and mentions and forwards them to Pushover without replying in Slack.",
+  "description": "Forwards Slack DMs and mentions to Pushover while you are away, translating Japanese messages without replying in Slack.",
   "uiHints": {
     "slackUserId": {
       "label": "Your Slack user ID",
@@ -41,7 +41,7 @@
       "notificationTitle": {
         "type": "string",
         "maxLength": 250,
-        "default": "Slack translation"
+        "default": "Slack while away"
       },
       "maxConcurrency": {
         "type": "integer",
@@ -54,6 +54,12 @@
         "minimum": 60,
         "maximum": 86400,
         "default": 3600
+      },
+      "presenceCacheSeconds": {
+        "type": "integer",
+        "minimum": 5,
+        "maximum": 300,
+        "default": 30
       },
       "requestTimeoutMs": {
         "type": "integer",

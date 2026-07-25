@@ -61,6 +61,42 @@ export async function getSlackPermalink(
   return result.permalink;
 }
 
+export type SlackPresence = "active" | "away";
+
+export class SlackPresenceCache {
+  private cached: { presence: SlackPresence; expiresAt: number } | undefined;
+  private pending: Promise<SlackPresence> | undefined;
+
+  constructor(
+    private readonly token: string,
+    private readonly userId: string,
+    private readonly timeoutMs: number,
+    private readonly ttlMs = 30_000,
+  ) {}
+
+  async getPresence(): Promise<SlackPresence> {
+    if (this.cached && this.cached.expiresAt > Date.now()) return this.cached.presence;
+    if (this.pending) return this.pending;
+
+    this.pending = slackApi<{ presence?: string }>(
+      "users.getPresence",
+      this.token,
+      new URLSearchParams({ user: this.userId }),
+      this.timeoutMs,
+    ).then((result) => {
+      if (result.presence !== "active" && result.presence !== "away") {
+        throw new Error("Slack users.getPresence returned an invalid presence");
+      }
+      this.cached = { presence: result.presence, expiresAt: Date.now() + this.ttlMs };
+      return result.presence;
+    }).finally(() => {
+      this.pending = undefined;
+    });
+
+    return this.pending;
+  }
+}
+
 export class SlackUserCache {
   private readonly entries = new Map<string, { name: string; expiresAt: number }>();
 

@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getSlackPermalink, sendPushover, SlackUserCache } from "./clients.js";
+import {
+  getSlackPermalink,
+  sendPushover,
+  SlackPresenceCache,
+  SlackUserCache,
+} from "./clients.js";
 
 const originalFetch = globalThis.fetch;
 
@@ -22,6 +27,20 @@ describe("Slack clients", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain("chat.getPermalink?channel=D123&message_ts=123.456");
     expect(init.headers).toEqual({ Authorization: "Bearer xoxp-secret" });
+  });
+
+  it("checks and caches the authenticated user's Slack presence", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      presence: "away",
+    }), { status: 200 }));
+    globalThis.fetch = fetchMock;
+    const presence = new SlackPresenceCache("xoxp-secret", "UOWNER", 1000, 30_000);
+
+    expect(await presence.getPresence()).toBe("away");
+    expect(await presence.getPresence()).toBe("away");
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0]?.[0]).toContain("users.getPresence?user=UOWNER");
   });
 
   it("caches resolved Slack display names", async () => {

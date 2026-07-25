@@ -18,6 +18,7 @@ const config: RelayConfig = {
   notificationTitle: "Slack translation",
   maxConcurrency: 2,
   dedupeTtlSeconds: 3600,
+  presenceCacheSeconds: 30,
   requestTimeoutMs: 10_000,
 };
 
@@ -62,9 +63,13 @@ describe("Slack message filtering", () => {
     }), config.slackUserId)?.text).toBe("資料を確認してください");
   });
 
+  it("accepts an English DM for pass-through forwarding", () => {
+    expect(toRelayMessage(message({ content: "Please review this" }), config.slackUserId)?.text)
+      .toBe("Please review this");
+  });
+
   it.each([
     ["non-mentioned channel", { conversationId: "C123", isGroup: true }],
-    ["English message", { content: "Please review this" }],
     ["self-authored message", { senderId: "UOWNER" }],
     ["message edit", { metadata: { subtype: "message_changed" } }],
     ["other provider", { channel: "discord" }],
@@ -118,6 +123,20 @@ describe("retry behavior", () => {
 });
 
 describe("relay processing", () => {
+  it("forwards English text without calling the model", async () => {
+    const translate = vi.fn().mockResolvedValue("unused");
+    const sendPush = vi.fn().mockResolvedValue(undefined);
+    await processRelayMessage(config, { ...relay, text: "Please review this" }, {
+      translate,
+      getPermalink: vi.fn().mockResolvedValue("https://slack.test/message"),
+      getSenderName: vi.fn().mockResolvedValue("Aiko"),
+      sendPush,
+      log: vi.fn(),
+    });
+    expect(translate).not.toHaveBeenCalled();
+    expect(sendPush.mock.calls[0]?.[0].message).toContain("Please review this");
+  });
+
   it("sends a fallback push when model and permalink calls fail", async () => {
     const sendPush = vi.fn().mockResolvedValue(undefined);
     await processRelayMessage(config, relay, {

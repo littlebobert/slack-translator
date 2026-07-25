@@ -68,9 +68,13 @@ describe("Slack message filtering", () => {
       .toBe("Please review this");
   });
 
+  it("accepts a self-authored DM for testing", () => {
+    expect(toRelayMessage(message({ senderId: "UOWNER" }), config.slackUserId)?.senderId)
+      .toBe("UOWNER");
+  });
+
   it.each([
     ["non-mentioned channel", { conversationId: "C123", isGroup: true }],
-    ["self-authored message", { senderId: "UOWNER" }],
     ["message edit", { metadata: { subtype: "message_changed" } }],
     ["other provider", { channel: "discord" }],
   ])("rejects %s", (_name, overrides) => {

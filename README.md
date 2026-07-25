@@ -107,7 +107,6 @@ A notification is sent only when all of these are true:
 
 - the inbound provider is Slack;
 - Slack's `users.getPresence` API reports your account as `away`;
-- the sender is not your own Slack user ID;
 - the event is an ordinary message, not an edit, deletion, bot, or system event;
 - it is a DM to you, or a channel/private-channel message that mentions you.
 
@@ -122,7 +121,7 @@ Pushover messages are truncated to its 1,024-byte limit. Message bodies and cred
 After restarting OpenClaw, test these cases:
 
 1. While Slack shows you active, receive a DM or mention: no Pushover notification arrives.
-2. Set your Slack availability to away for testing, then receive a Japanese DM: one translated push arrives.
+2. Set your Slack availability to away for testing, then send or receive a Japanese DM: one translated push arrives. Self-authored DMs are temporarily accepted to make setup testing easier.
 3. While away, receive an English DM: one unchanged push arrives without a model translation.
 4. While away, receive a Japanese channel mention: one translated push arrives.
 5. A channel message that does not mention you produces no push.

@@ -70,7 +70,7 @@ export function isDirectMessage(message: InboundSlackMessage): boolean {
 }
 
 export function isTargetedMessage(message: InboundSlackMessage, slackUserId: string): boolean {
-  if (message.channel !== "slack" || message.senderId === slackUserId || isSystemMessage(message)) {
+  if (message.channel !== "slack" || isSystemMessage(message)) {
     return false;
   }
   if (isDirectMessage(message)) return true;

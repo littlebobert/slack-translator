@@ -61,7 +61,7 @@ Configure the Slack channel in `~/.openclaw/openclaw.json`. Use secret reference
 }
 ```
 
-`groupPolicy: "open"` is required because OpenClaw otherwise defaults to a channel allowlist and can drop channel messages before the relay hook runs. `requireMention: false` is required so OpenClaw passes unmentioned thread replies and configured all-message channel posts to the relay. The relay claims all Slack ingress silently, then forwards only DMs, direct mentions, replies whose thread parent reports `subscribed: true`, and messages from `notifyAllChannelIds`. Unrelated channel messages do not reach the model and do not produce Slack or iMessage replies.
+`groupPolicy: "open"` is required because OpenClaw otherwise defaults to a channel allowlist and can drop channel messages before the relay hook runs. `requireMention: false` is required so OpenClaw passes unmentioned thread replies and configured all-message channel posts to the relay. The relay observes incoming Slack messages, forwards only DMs, direct mentions, replies whose thread parent reports `subscribed: true`, and messages from `notifyAllChannelIds`, and then silently handles every Slack turn before model dispatch. Unrelated channel messages do not reach the model and do not produce Slack or iMessage replies.
 
 ## 3. Set up iMessage delivery
 
@@ -88,7 +88,7 @@ npm install
 npm test
 npm run build
 npm pack
-openclaw plugins install npm-pack:./openclaw-slack-translation-relay-0.4.1.tgz --force
+openclaw plugins install npm-pack:./openclaw-slack-translation-relay-0.4.2.tgz --force
 ```
 
 Add the plugin entry to `~/.openclaw/openclaw.json`:
@@ -144,7 +144,7 @@ An iMessage is sent only when all of these are true:
 
 Japanese text containing Hiragana, Katakana, or Han characters is translated into English. Other text is forwarded unchanged and does not invoke the model. Presence is cached for 30 seconds by default to limit Slack API traffic. Slack normally marks a desktop user away after roughly 10 minutes without activity; locking the desktop generally transitions mobile notification timing sooner.
 
-Every Slack event reaching the hook is claimed silently so OpenClaw does not answer in Slack. For an unmentioned channel thread reply, the plugin calls `conversations.replies` with your user token and forwards it only when the parent message has `subscribed: true`. Since Slack does not expose whether a channel is set to **All new messages**, the plugin uses the explicit `notifyAllChannelIds` mirror. Slack retries are deduplicated by conversation ID and message timestamp. Model and Slack API calls use bounded retries and timeouts; `imsg` delivery has a bounded timeout. If Japanese translation fails, the plugin sends a short failure message with the Slack link when available. If the presence check fails, the plugin fails closed and sends no iMessage, avoiding duplicate alerts while your state is unknown.
+The plugin observes every admitted Slack message through `message_received`, then its `before_dispatch` hook silently terminates the Slack turn before OpenClaw invokes the model or attempts a Slack reply. For an unmentioned channel thread reply, the plugin calls `conversations.replies` with your user token and forwards it only when the parent message has `subscribed: true`. Since Slack does not expose whether a channel is set to **All new messages**, the plugin uses the explicit `notifyAllChannelIds` mirror. Slack retries are deduplicated by conversation ID and message timestamp. Model and Slack API calls use bounded retries and timeouts; `imsg` delivery has a bounded timeout. If Japanese translation fails, the plugin sends a short failure message with the Slack link when available. If the presence check fails, the plugin fails closed and sends no iMessage, avoiding duplicate alerts while your state is unknown.
 
 The iMessage uses a compact format: `From Slack: DM from <sender>:`, `Mention from <sender>:`, `Thread reply from <sender>:`, or `Channel post from <sender>:`, the translated or unchanged message on the next line, and `Link: <Slack permalink>` on the final line. Long bodies are truncated to 8,000 UTF-8 bytes. Message bodies and credentials are never written to plugin logs. Candidate, skip, failure, and success diagnostics include only Slack channel/message IDs and decision reasons such as `presence-active`, `thread-not-subscribed`, and `duplicate`.
 

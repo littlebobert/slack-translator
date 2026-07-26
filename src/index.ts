@@ -58,19 +58,21 @@ export default definePluginEntry({
     );
     const users = new SlackUserCache(slackToken, config.requestTimeoutMs);
 
-    api.on("inbound_claim", (event) => {
+    api.on("message_received", (event, context) => {
+      const metadata = event.metadata ?? {};
+      const conversationId = context.conversationId;
       const message: InboundSlackMessage = {
-        channel: event.channel,
+        channel: context.channelId,
         content: event.content,
-        isGroup: event.isGroup,
-        ...(event.conversationId ? { conversationId: event.conversationId } : {}),
+        isGroup: Boolean(conversationId && !conversationId.startsWith("D")),
+        ...(conversationId ? { conversationId } : {}),
         ...(event.senderId ? { senderId: event.senderId } : {}),
-        ...(event.senderName ? { senderName: event.senderName } : {}),
+        ...(typeof metadata.senderName === "string" ? { senderName: metadata.senderName } : {}),
         ...(event.messageId ? { messageId: event.messageId } : {}),
         ...(event.timestamp ? { timestamp: event.timestamp } : {}),
-        ...(event.wasMentioned !== undefined ? { wasMentioned: event.wasMentioned } : {}),
+        ...(event.content.includes(`<@${config.slackUserId}>`) ? { wasMentioned: true } : {}),
         ...(event.threadId !== undefined ? { threadId: String(event.threadId) } : {}),
-        ...(event.metadata ? { metadata: event.metadata } : {}),
+        metadata,
       };
 
       if (message.channel !== "slack" || isSystemMessage(message)) return;
@@ -85,7 +87,7 @@ export default definePluginEntry({
         && !isDirectMessage(message)
         && isThreadReply(message)
         && Boolean(message.conversationId && message.threadId);
-      if (!directlyTargeted && !needsThreadSubscriptionCheck) return { handled: true };
+      if (!directlyTargeted && !needsThreadSubscriptionCheck) return;
 
       const eventId = relayEventId(message);
       const targetReason = directlyTargeted
@@ -181,6 +183,10 @@ export default definePluginEntry({
         }
       });
 
+    }, { priority: 100 });
+
+    api.on("before_dispatch", (event) => {
+      if (event.channel !== "slack") return;
       return { handled: true };
     }, { priority: 100 });
 

@@ -1,6 +1,6 @@
 {
   "name": "openclaw-slack-translation-relay",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "Forward Slack DMs and mentions through iMessage while away, translating Japanese messages.",
   "type": "module",
   "license": "MIT",

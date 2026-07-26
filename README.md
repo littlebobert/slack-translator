@@ -58,7 +58,7 @@ The relay invokes [`imsg`](https://github.com/steipete/imsg) directly on the Mac
 3. In an interactive terminal on the Mac mini, test the exact recipient before configuring the plugin:
 
 ```bash
-/opt/homebrew/opt/imsg/bin/imsg send "+15555550123" "OpenClaw iMessage test"
+/opt/homebrew/opt/imsg/bin/imsg send --to "+15555550123" --text "OpenClaw iMessage test"
 ```
 
 Use the receiving iPhone's full E.164 phone number, such as `+15555550123`, or its iMessage-enabled Apple Account email. Sending from and to the same Apple Account can behave differently depending on Messages routing and synchronization; verify that the test appears on the phone and generates the desired notification. A distinct receiving handle is more predictable.
@@ -74,7 +74,7 @@ npm install
 npm test
 npm run build
 npm pack
-openclaw plugins install npm-pack:./openclaw-slack-translation-relay-0.1.0.tgz --force
+openclaw plugins install npm-pack:./openclaw-slack-translation-relay-0.2.1.tgz --force
 ```
 
 Add the plugin entry to `~/.openclaw/openclaw.json`:

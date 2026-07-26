@@ -136,7 +136,7 @@ export async function sendIMessage(
     ...(input.url ? ["", input.urlTitle ?? "Open in Slack", input.url] : []),
   ].join("\n");
   try {
-    await execFileAsync(cliPath, ["send", recipient, text], {
+    await execFileAsync(cliPath, ["send", "--to", recipient, "--text", text], {
       timeout: timeoutMs,
       maxBuffer: 1024 * 1024,
     });

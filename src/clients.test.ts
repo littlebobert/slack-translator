@@ -77,7 +77,9 @@ describe("iMessage client", () => {
     expect(file).toBe("/opt/homebrew/bin/imsg");
     expect(args).toEqual([
       "send",
+      "--to",
       "+15555550123",
+      "--text",
       "Slack translation\n\nTranslated text; $(touch /tmp/unsafe)\n\nOpen in Slack\nhttps://workspace.slack.com/message",
     ]);
     expect(options).toMatchObject({ timeout: 1000 });

@@ -60,6 +60,13 @@ export default definePluginEntry({
 
     api.on("reply_dispatch", (event) => {
       const context = event.ctx;
+      const provider = context.Provider ?? "unknown";
+      const originatingChannel = context.OriginatingChannel ?? "unknown";
+      const nativeChannelId = context.NativeChannelId ?? "unknown";
+      const messageId = context.MessageSidFull ?? context.MessageSid ?? "unknown";
+      api.logger.info(
+        `Slack relay dispatch observed provider=${provider} originatingChannel=${originatingChannel} nativeChannel=${nativeChannelId} message=${messageId}`,
+      );
       const message: InboundSlackMessage = {
         channel: context.OriginatingChannel ?? context.Provider ?? "",
         content: context.BodyForCommands ?? context.RawBody ?? context.Body ?? "",

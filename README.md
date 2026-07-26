@@ -19,12 +19,20 @@ Socket Mode opens an outbound WebSocket from the Mac mini, so no public inbound 
 ## 1. Create the Slack app
 
 1. Open [Slack API Apps](https://api.slack.com/apps), choose **Create New App**, and create it from [`config/slack-app-manifest.json`](config/slack-app-manifest.json).
-2. Ask a workspace administrator to review and approve the user scopes.
-3. Under **Basic Information → App-Level Tokens**, generate a token with only `connections:write`. This is the `xapp-…` token.
-4. Install or reinstall the app to the workspace as your Slack account. Copy the resulting `xoxp-…` user OAuth token.
-5. Find your Slack member ID from your Slack profile menu. It starts with `U`.
+2. Under **OAuth & Permissions → User Token Scopes**, verify these read-only user scopes are present: `channels:history`, `channels:read`, `groups:history`, `groups:read`, `im:history`, `im:read`, `mpim:history`, `mpim:read`, and `users:read`.
+3. Under **Event Subscriptions**, enable events. Expand **Subscribe to events on behalf of users**—not **Subscribe to bot events**—and add all four workspace events:
+   - `message.channels`
+   - `message.groups`
+   - `message.im`
+   - `message.mpim`
+4. Save the event-subscription changes. A working Socket Mode connection alone is not sufficient: without these user events, Slack connects but sends no messages to the relay.
+5. Under **Basic Information → App-Level Tokens**, generate a token with only `connections:write`. This is `SLACK_APP_TOKEN`, and it starts with `xapp-…`.
+6. Under **Socket Mode**, confirm Socket Mode is enabled.
+7. Install or reinstall the app to the workspace as your Slack account after changing scopes or event subscriptions. Copy the resulting **User OAuth Token**, which starts with `xoxp-…`; this is `SLACK_USER_TOKEN`. Do not use the Bot User OAuth Token (`xoxb-…`).
+8. Ask a workspace administrator to approve the installation and user scopes if required.
+9. Find your Slack member ID from your Slack profile menu. It starts with `U`.
 
-The app requests read-only user scopes. It intentionally omits `chat:write`, so neither OpenClaw nor this plugin can post as you through this app.
+The manifest declares the scopes and user events above, but verify them in Slack after importing it. The app intentionally omits `chat:write`, so neither OpenClaw nor this plugin can post as you through this app.
 
 ## 2. Install the OpenClaw Slack channel
 
@@ -44,13 +52,16 @@ Configure the Slack channel in `~/.openclaw/openclaw.json`. Use secret reference
       userToken: { source: "env", provider: "default", id: "SLACK_USER_TOKEN" },
       appToken: { source: "env", provider: "default", id: "SLACK_APP_TOKEN" },
       userTokenReadOnly: true,
+      dmPolicy: "open",
+      allowFrom: ["*"],
+      groupPolicy: "open",
       requireMention: false,
     },
   },
 }
 ```
 
-`requireMention: false` is required so OpenClaw passes unmentioned thread replies and configured all-message channel posts to the relay. The relay claims all Slack ingress silently, then forwards only DMs, direct mentions, replies whose thread parent reports `subscribed: true`, and messages from `notifyAllChannelIds`. Unrelated channel messages do not reach the model and do not produce Slack or iMessage replies.
+`groupPolicy: "open"` is required because OpenClaw otherwise defaults to a channel allowlist and can drop channel messages before the relay hook runs. `requireMention: false` is required so OpenClaw passes unmentioned thread replies and configured all-message channel posts to the relay. The relay claims all Slack ingress silently, then forwards only DMs, direct mentions, replies whose thread parent reports `subscribed: true`, and messages from `notifyAllChannelIds`. Unrelated channel messages do not reach the model and do not produce Slack or iMessage replies.
 
 ## 3. Set up iMessage delivery
 
@@ -168,7 +179,7 @@ Slack does not expose an API that lets this plugin dynamically disable Slack's o
 
 - **No iMessage while away:** confirm Slack actually shows your account as away. Automatic away normally takes about 10 minutes of desktop inactivity; manually choose away to test immediately.
 - **Unexpected iMessage while at the laptop:** presence can remain cached for up to `presenceCacheSeconds` after Slack changes state. Reduce it to 5 seconds for testing, then use 30 seconds normally.
-- **No Slack events:** confirm the app uses user event subscriptions, Socket Mode is enabled, the `xapp` token has `connections:write`, and the app was reinstalled after scopes changed.
+- **No Slack events:** under **Event Subscriptions → Subscribe to events on behalf of users**, confirm `message.channels`, `message.groups`, `message.im`, and `message.mpim` are present. Confirm Socket Mode is enabled, the `xapp-…` app token has `connections:write`, `SLACK_USER_TOKEN` is the `xoxp-…` User OAuth Token rather than the `xoxb-…` bot token, and the app was reinstalled after changing scopes or events. Also verify `channels.slack.groupPolicy` is `"open"` and `requireMention` is `false`.
 - **No subscribed thread replies:** confirm `channels.slack.requireMention` is `false`, the Slack app has the matching `*:history` scope for the channel type, and Slack shows **Get notified about new replies** enabled for that thread.
 - **Missing all-message channel posts:** add the exact `C...` or `G...` channel ID to `notifyAllChannelIds`; Slack's supported API cannot synchronize this preference automatically.
 - **Message was not relayed:** watch for `Slack relay candidate`, `Slack relay skipped`, `Slack relay failed`, and `Slack relay forwarded`. These lines identify the decision without logging message content.

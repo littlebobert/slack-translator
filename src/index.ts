@@ -58,24 +58,32 @@ export default definePluginEntry({
     );
     const users = new SlackUserCache(slackToken, config.requestTimeoutMs);
 
-    api.on("message_received", (event, context) => {
-      const metadata = event.metadata ?? {};
-      const conversationId = context.conversationId;
+    api.on("reply_dispatch", (event) => {
+      const context = event.ctx;
       const message: InboundSlackMessage = {
-        channel: context.channelId,
-        content: event.content,
-        isGroup: Boolean(conversationId && !conversationId.startsWith("D")),
-        ...(conversationId ? { conversationId } : {}),
-        ...(event.senderId ? { senderId: event.senderId } : {}),
-        ...(typeof metadata.senderName === "string" ? { senderName: metadata.senderName } : {}),
-        ...(event.messageId ? { messageId: event.messageId } : {}),
-        ...(event.timestamp ? { timestamp: event.timestamp } : {}),
-        ...(event.content.includes(`<@${config.slackUserId}>`) ? { wasMentioned: true } : {}),
-        ...(event.threadId !== undefined ? { threadId: String(event.threadId) } : {}),
-        metadata,
+        channel: context.OriginatingChannel ?? context.Provider ?? "",
+        content: context.BodyForCommands ?? context.RawBody ?? context.Body ?? "",
+        isGroup: context.ChatType !== "direct",
+        ...(context.NativeChannelId ? { conversationId: context.NativeChannelId } : {}),
+        ...(context.SenderId ? { senderId: context.SenderId } : {}),
+        ...(context.SenderName ? { senderName: context.SenderName } : {}),
+        ...(context.MessageSidFull ?? context.MessageSid
+          ? { messageId: context.MessageSidFull ?? context.MessageSid }
+          : {}),
+        ...(context.Timestamp ? { timestamp: context.Timestamp } : {}),
+        ...(context.WasMentioned !== undefined ? { wasMentioned: context.WasMentioned } : {}),
+        ...(context.MessageThreadId !== undefined
+          ? { threadId: String(context.MessageThreadId) }
+          : {}),
       };
 
-      if (message.channel !== "slack" || isSystemMessage(message)) return;
+      if (message.channel !== "slack") return;
+      const handled = {
+        handled: true,
+        queuedFinal: false,
+        counts: { tool: 0, block: 0, final: 0 },
+      };
+      if (isSystemMessage(message)) return handled;
 
       const directlyTargeted = isTargetedMessage(
         message,
@@ -87,7 +95,7 @@ export default definePluginEntry({
         && !isDirectMessage(message)
         && isThreadReply(message)
         && Boolean(message.conversationId && message.threadId);
-      if (!directlyTargeted && !needsThreadSubscriptionCheck) return;
+      if (!directlyTargeted && !needsThreadSubscriptionCheck) return handled;
 
       const eventId = relayEventId(message);
       const targetReason = directlyTargeted
@@ -183,11 +191,7 @@ export default definePluginEntry({
         }
       });
 
-    }, { priority: 100 });
-
-    api.on("before_dispatch", (event) => {
-      if (event.channel !== "slack") return;
-      return { handled: true };
+      return handled;
     }, { priority: 100 });
 
     api.logger.info("Slack Translation Relay registered");

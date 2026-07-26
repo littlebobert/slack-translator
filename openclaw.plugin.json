@@ -1,7 +1,7 @@
 {
   "id": "slack-translation-relay",
   "name": "Slack Translation Relay",
-  "description": "Forwards Slack DMs and mentions to Pushover while you are away, translating Japanese messages without replying in Slack.",
+  "description": "Forwards Slack DMs and mentions through iMessage while you are away, translating Japanese messages without replying in Slack.",
   "uiHints": {
     "slackUserId": {
       "label": "Your Slack user ID",
@@ -10,17 +10,18 @@
     "slackUserTokenEnv": {
       "label": "Slack user token environment variable"
     },
-    "pushoverUserKeyEnv": {
-      "label": "Pushover user key environment variable"
+    "imessageRecipient": {
+      "label": "iMessage recipient",
+      "placeholder": "+15555550123 or user@example.com"
     },
-    "pushoverAppTokenEnv": {
-      "label": "Pushover application token environment variable"
+    "imsgCliPath": {
+      "label": "imsg CLI path"
     }
   },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["slackUserId"],
+    "required": ["slackUserId", "imessageRecipient"],
     "properties": {
       "slackUserId": {
         "type": "string",
@@ -30,13 +31,13 @@
         "type": "string",
         "default": "SLACK_USER_TOKEN"
       },
-      "pushoverUserKeyEnv": {
+      "imessageRecipient": {
         "type": "string",
-        "default": "PUSHOVER_USER_KEY"
+        "minLength": 3
       },
-      "pushoverAppTokenEnv": {
+      "imsgCliPath": {
         "type": "string",
-        "default": "PUSHOVER_APP_TOKEN"
+        "default": "/opt/homebrew/opt/imsg/bin/imsg"
       },
       "notificationTitle": {
         "type": "string",

@@ -1,6 +1,6 @@
 import type {
   InboundSlackMessage,
-  PushInput,
+  NotificationInput,
   RelayConfig,
   RelayDependencies,
   RelayMessage,
@@ -21,7 +21,7 @@ const SYSTEM_SUBTYPES = new Set([
   "thread_broadcast",
 ]);
 
-export const PUSHOVER_MESSAGE_LIMIT = 1024;
+export const IMESSAGE_TEXT_LIMIT = 8_000;
 
 export function containsJapanese(text: string): boolean {
   return JAPANESE_TEXT.test(text);
@@ -42,8 +42,8 @@ export function normalizeConfig(raw: Record<string, unknown>): RelayConfig {
   return {
     slackUserId: stringValue("slackUserId"),
     slackUserTokenEnv: stringValue("slackUserTokenEnv", "SLACK_USER_TOKEN"),
-    pushoverUserKeyEnv: stringValue("pushoverUserKeyEnv", "PUSHOVER_USER_KEY"),
-    pushoverAppTokenEnv: stringValue("pushoverAppTokenEnv", "PUSHOVER_APP_TOKEN"),
+    imessageRecipient: stringValue("imessageRecipient"),
+    imsgCliPath: stringValue("imsgCliPath", "/opt/homebrew/opt/imsg/bin/imsg"),
     notificationTitle: stringValue("notificationTitle", "Slack while away"),
     maxConcurrency: intValue("maxConcurrency", 2),
     dedupeTtlSeconds: intValue("dedupeTtlSeconds", 3600),
@@ -119,13 +119,13 @@ export function truncateUtf8(text: string, maxBytes: number): string {
   return result.trimEnd() + suffix;
 }
 
-export function buildPushInput(
+export function buildNotificationInput(
   config: RelayConfig,
   message: RelayMessage,
   translation: string | undefined,
   permalink: string | undefined,
   resolvedSenderName?: string,
-): PushInput {
+): NotificationInput {
   const sender = resolvedSenderName ?? message.senderName ?? message.senderId;
   const context = message.isDirect ? "DM" : "Mention";
   const body = translation
@@ -133,7 +133,7 @@ export function buildPushInput(
     : `${context} from ${sender}\n\nTranslation failed. Open the original message in Slack.`;
   return {
     title: truncateUtf8(config.notificationTitle, 250),
-    message: truncateUtf8(body, PUSHOVER_MESSAGE_LIMIT),
+    message: truncateUtf8(body, IMESSAGE_TEXT_LIMIT),
     ...(permalink ? { url: permalink, urlTitle: "Open in Slack" } : {}),
   };
 }
@@ -226,8 +226,8 @@ export async function processRelayMessage(
   const permalink = permalinkResult.status === "fulfilled" ? permalinkResult.value : undefined;
   const senderName = senderResult.status === "fulfilled" ? senderResult.value : undefined;
 
-  if (needsTranslation && !translation) dependencies.log("warn", "Translation failed; sending a fallback notification");
-  if (!permalink) dependencies.log("warn", "Slack permalink lookup failed; sending without a link");
+  if (needsTranslation && !translation) dependencies.log("warn", "Translation failed; sending a fallback message");
+  if (!permalink) dependencies.log("warn", "Slack permalink lookup failed; sending iMessage without a link");
 
-  await dependencies.sendPush(buildPushInput(config, message, translation, permalink, senderName));
+  await dependencies.sendNotification(buildNotificationInput(config, message, translation, permalink, senderName));
 }

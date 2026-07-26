@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  buildPushInput,
+  buildNotificationInput,
   containsJapanese,
   processRelayMessage,
   toRelayMessage,
@@ -13,8 +13,8 @@ import type { InboundSlackMessage, RelayConfig, RelayMessage } from "./types.js"
 const config: RelayConfig = {
   slackUserId: "UOWNER",
   slackUserTokenEnv: "SLACK_USER_TOKEN",
-  pushoverUserKeyEnv: "PUSHOVER_USER_KEY",
-  pushoverAppTokenEnv: "PUSHOVER_APP_TOKEN",
+  imessageRecipient: "+15555550123",
+  imsgCliPath: "/opt/homebrew/opt/imsg/bin/imsg",
   notificationTitle: "Slack translation",
   maxConcurrency: 2,
   dedupeTtlSeconds: 3600,
@@ -95,7 +95,7 @@ describe("deduplication", () => {
 
 describe("notification construction", () => {
   it("preserves a permalink and resolved sender", () => {
-    expect(buildPushInput(config, relay, "Tomorrow's meeting is at 10.", "https://slack.test/message", "Aiko S.")).toEqual({
+    expect(buildNotificationInput(config, relay, "Tomorrow's meeting is at 10.", "https://slack.test/message", "Aiko S.")).toEqual({
       title: "Slack translation",
       message: "DM from Aiko S.\n\nTomorrow's meeting is at 10.",
       url: "https://slack.test/message",
@@ -104,7 +104,7 @@ describe("notification construction", () => {
   });
 
   it("builds a useful fallback when translation fails", () => {
-    const push = buildPushInput(config, relay, undefined, undefined);
+    const push = buildNotificationInput(config, relay, undefined, undefined);
     expect(push.message).toContain("Translation failed");
     expect(push.url).toBeUndefined();
   });
@@ -129,28 +129,28 @@ describe("retry behavior", () => {
 describe("relay processing", () => {
   it("forwards English text without calling the model", async () => {
     const translate = vi.fn().mockResolvedValue("unused");
-    const sendPush = vi.fn().mockResolvedValue(undefined);
+    const sendNotification = vi.fn().mockResolvedValue(undefined);
     await processRelayMessage(config, { ...relay, text: "Please review this" }, {
       translate,
       getPermalink: vi.fn().mockResolvedValue("https://slack.test/message"),
       getSenderName: vi.fn().mockResolvedValue("Aiko"),
-      sendPush,
+      sendNotification,
       log: vi.fn(),
     });
     expect(translate).not.toHaveBeenCalled();
-    expect(sendPush.mock.calls[0]?.[0].message).toContain("Please review this");
+    expect(sendNotification.mock.calls[0]?.[0].message).toContain("Please review this");
   });
 
-  it("sends a fallback push when model and permalink calls fail", async () => {
-    const sendPush = vi.fn().mockResolvedValue(undefined);
+  it("sends a fallback message when model and permalink calls fail", async () => {
+    const sendNotification = vi.fn().mockResolvedValue(undefined);
     await processRelayMessage(config, relay, {
       translate: vi.fn().mockRejectedValue(new Error("model unavailable")),
       getPermalink: vi.fn().mockRejectedValue(new Error("Slack unavailable")),
       getSenderName: vi.fn().mockResolvedValue("Aiko"),
-      sendPush,
+      sendNotification,
       log: vi.fn(),
     });
-    expect(sendPush).toHaveBeenCalledOnce();
-    expect(sendPush.mock.calls[0]?.[0].message).toContain("Translation failed");
+    expect(sendNotification).toHaveBeenCalledOnce();
+    expect(sendNotification.mock.calls[0]?.[0].message).toContain("Translation failed");
   });
 });

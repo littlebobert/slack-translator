@@ -1,8 +1,8 @@
 export interface RelayConfig {
   slackUserId: string;
   slackUserTokenEnv: string;
-  pushoverUserKeyEnv: string;
-  pushoverAppTokenEnv: string;
+  imessageRecipient: string;
+  imsgCliPath: string;
   notificationTitle: string;
   maxConcurrency: number;
   dedupeTtlSeconds: number;
@@ -40,11 +40,11 @@ export interface RelayDependencies {
   translate(text: string): Promise<string>;
   getPermalink(channelId: string, messageTs: string): Promise<string | undefined>;
   getSenderName(senderId: string): Promise<string | undefined>;
-  sendPush(input: PushInput): Promise<void>;
+  sendNotification(input: NotificationInput): Promise<void>;
   log(level: "debug" | "info" | "warn" | "error", message: string): void;
 }
 
-export interface PushInput {
+export interface NotificationInput {
   title: string;
   message: string;
   url?: string;

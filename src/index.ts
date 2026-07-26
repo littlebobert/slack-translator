@@ -1,7 +1,7 @@
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import {
   getSlackPermalink,
-  sendPushover,
+  sendIMessage,
   SlackPresenceCache,
   SlackUserCache,
 } from "./clients.js";
@@ -31,12 +31,10 @@ function extractCompletionText(result: { text: string }): string {
 export default definePluginEntry({
   id: "slack-translation-relay",
   name: "Slack Translation Relay",
-  description: "Forwards Slack DMs and mentions while the user is away, translating Japanese messages.",
+  description: "Forwards Slack DMs and mentions through iMessage while the user is away, translating Japanese messages.",
   register(api) {
     const config = normalizeConfig(api.pluginConfig ?? {});
     const slackToken = requiredSecret(config.slackUserTokenEnv);
-    const pushoverUserKey = requiredSecret(config.pushoverUserKeyEnv);
-    const pushoverAppToken = requiredSecret(config.pushoverAppTokenEnv);
     const deduplicator = new TtlDeduplicator(config.dedupeTtlSeconds * 1000);
     const queue = new WorkQueue(config.maxConcurrency);
     const presence = new SlackPresenceCache(
@@ -100,9 +98,9 @@ export default definePluginEntry({
                 config.requestTimeoutMs,
               ),
               getSenderName: (senderId) => users.getDisplayName(senderId),
-              sendPush: (input) => sendPushover(
-                pushoverAppToken,
-                pushoverUserKey,
+              sendNotification: (input) => sendIMessage(
+                config.imsgCliPath,
+                config.imessageRecipient,
                 input,
                 config.requestTimeoutMs,
               ),
@@ -111,9 +109,9 @@ export default definePluginEntry({
                 logger(text);
               },
             });
-            api.logger.info("Forwarded one Slack notification while user was away");
+            api.logger.info("Forwarded one Slack message through iMessage while user was away");
           } catch {
-            api.logger.error("Failed to process an away-mode Slack notification");
+            api.logger.error("Failed to process an away-mode Slack message for iMessage delivery");
           }
         });
       }

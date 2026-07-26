@@ -1,4 +1,8 @@
-import type { PushInput } from "./types.js";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import type { NotificationInput } from "./types.js";
+
+const execFileAsync = promisify(execFile);
 
 interface FetchOptions {
   timeoutMs: number;
@@ -119,26 +123,24 @@ export class SlackUserCache {
   }
 }
 
-export async function sendPushover(
-  appToken: string,
-  userKey: string,
-  input: PushInput,
+export async function sendIMessage(
+  cliPath: string,
+  recipient: string,
+  input: NotificationInput,
   timeoutMs: number,
 ): Promise<void> {
-  const body = new URLSearchParams({
-    token: appToken,
-    user: userKey,
-    title: input.title,
-    message: input.message,
-    ...(input.url ? { url: input.url } : {}),
-    ...(input.urlTitle ? { url_title: input.urlTitle } : {}),
-  });
-  const response = await fetchWithRetry("https://api.pushover.net/1/messages.json", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  }, { timeoutMs });
-  if (!response.ok) throw new Error(`Pushover delivery failed: HTTP ${response.status}`);
-  const result = await response.json() as { status?: number; errors?: string[] };
-  if (result.status !== 1) throw new Error("Pushover rejected the notification");
+  const text = [
+    input.title,
+    "",
+    input.message,
+    ...(input.url ? ["", input.urlTitle ?? "Open in Slack", input.url] : []),
+  ].join("\n");
+  try {
+    await execFileAsync(cliPath, ["send", recipient, text], {
+      timeout: timeoutMs,
+      maxBuffer: 1024 * 1024,
+    });
+  } catch (error) {
+    throw new Error("iMessage delivery failed", { cause: error });
+  }
 }

@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+const execFileMock = vi.hoisted(() => vi.fn());
+vi.mock("node:child_process", () => ({ execFile: execFileMock }));
+
 import {
   getSlackPermalink,
-  sendPushover,
+  sendIMessage,
   SlackPresenceCache,
   SlackUserCache,
 } from "./clients.js";
@@ -57,31 +61,33 @@ describe("Slack clients", () => {
   });
 });
 
-describe("Pushover client", () => {
-  it("sends the translation and Slack URL without leaking secrets into the URL", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: 1 }), { status: 200 }));
-    globalThis.fetch = fetchMock;
+describe("iMessage client", () => {
+  it("sends the translation and Slack URL as one argument without a shell", async () => {
+    execFileMock.mockImplementationOnce((_file, _args, _options, callback) => callback(null, "", ""));
 
-    await sendPushover("app-secret", "user-secret", {
+    await sendIMessage("/opt/homebrew/bin/imsg", "+15555550123", {
       title: "Slack translation",
-      message: "Translated text",
+      message: "Translated text; $(touch /tmp/unsafe)",
       url: "https://workspace.slack.com/message",
       urlTitle: "Open in Slack",
     }, 1000);
 
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("https://api.pushover.net/1/messages.json");
-    const body = init.body as URLSearchParams;
-    expect(body.get("token")).toBe("app-secret");
-    expect(body.get("user")).toBe("user-secret");
-    expect(body.get("url")).toContain("slack.com");
+    expect(execFileMock).toHaveBeenCalledOnce();
+    const [file, args, options] = execFileMock.mock.calls[0] as [string, string[], Record<string, unknown>];
+    expect(file).toBe("/opt/homebrew/bin/imsg");
+    expect(args).toEqual([
+      "send",
+      "+15555550123",
+      "Slack translation\n\nTranslated text; $(touch /tmp/unsafe)\n\nOpen in Slack\nhttps://workspace.slack.com/message",
+    ]);
+    expect(options).toMatchObject({ timeout: 1000 });
   });
 
-  it("throws when Pushover rejects a request", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: 0 }), { status: 400 }));
-    await expect(sendPushover("app", "user", {
+  it("wraps imsg failures without exposing message text", async () => {
+    execFileMock.mockImplementationOnce((_file, _args, _options, callback) => callback(new Error("denied")));
+    await expect(sendIMessage("imsg", "+15555550123", {
       title: "Title",
-      message: "Message",
-    }, 1000)).rejects.toThrow("Pushover delivery failed");
+      message: "Sensitive message",
+    }, 1000)).rejects.toThrow("iMessage delivery failed");
   });
 });

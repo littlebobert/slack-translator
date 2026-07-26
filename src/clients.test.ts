@@ -7,6 +7,7 @@ import {
   getSlackPermalink,
   isSlackThreadSubscribed,
   sendIMessage,
+  SlackDmChannelCache,
   SlackPresenceCache,
   SlackUserCache,
 } from "./clients.js";
@@ -56,6 +57,26 @@ describe("Slack clients", () => {
 
     await expect(isSlackThreadSubscribed("xoxp-secret", "C123", "123.000", 1000))
       .resolves.toBe(false);
+  });
+
+  it("resolves and caches a peer user's native DM channel", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      channels: [
+        { id: "DOTHER", user: "UOTHER" },
+        { id: "D123", user: "U123" },
+      ],
+      response_metadata: { next_cursor: "" },
+    }), { status: 200 }));
+    globalThis.fetch = fetchMock;
+    const cache = new SlackDmChannelCache("xoxp-secret", 1000);
+
+    expect(await cache.getChannelId("U123")).toBe("D123");
+    expect(await cache.getChannelId("U123")).toBe("D123");
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("conversations.list?types=im&limit=200");
+    expect(init.headers).toEqual({ Authorization: "Bearer xoxp-secret" });
   });
 
   it("checks and caches the authenticated user's Slack presence", async () => {

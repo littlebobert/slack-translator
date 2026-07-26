@@ -80,6 +80,38 @@ export async function isSlackThreadSubscribed(
   return result.messages?.[0]?.subscribed === true;
 }
 
+export class SlackDmChannelCache {
+  private readonly entries = new Map<string, string>();
+
+  constructor(
+    private readonly token: string,
+    private readonly timeoutMs: number,
+  ) {}
+
+  async getChannelId(peerUserId: string): Promise<string> {
+    const cached = this.entries.get(peerUserId);
+    if (cached) return cached;
+
+    let cursor = "";
+    do {
+      const params = new URLSearchParams({ types: "im", limit: "200" });
+      if (cursor) params.set("cursor", cursor);
+      const result = await slackApi<{
+        channels?: Array<{ id?: string; user?: string }>;
+        response_metadata?: { next_cursor?: string };
+      }>("conversations.list", this.token, params, this.timeoutMs);
+      const channel = result.channels?.find((entry) => entry.user === peerUserId && entry.id);
+      if (channel?.id) {
+        this.entries.set(peerUserId, channel.id);
+        return channel.id;
+      }
+      cursor = result.response_metadata?.next_cursor?.trim() ?? "";
+    } while (cursor);
+
+    throw new Error(`Slack DM channel not found for user ${peerUserId}`);
+  }
+}
+
 export type SlackPresence = "active" | "away";
 
 export class SlackPresenceCache {

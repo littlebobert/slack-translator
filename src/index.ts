@@ -3,6 +3,7 @@ import {
   getSlackPermalink,
   isSlackThreadSubscribed,
   sendIMessage,
+  SlackDmChannelCache,
   SlackPresenceCache,
   SlackUserCache,
 } from "./clients.js";
@@ -57,40 +58,10 @@ export default definePluginEntry({
       config.presenceCacheSeconds * 1000,
     );
     const users = new SlackUserCache(slackToken, config.requestTimeoutMs);
+    const dmChannels = new SlackDmChannelCache(slackToken, config.requestTimeoutMs);
 
-    api.on("reply_dispatch", (event) => {
-      const context = event.ctx;
-      const provider = context.Provider ?? "unknown";
-      const originatingChannel = context.OriginatingChannel ?? "unknown";
-      const nativeChannelId = context.NativeChannelId ?? "unknown";
-      const messageId = context.MessageSidFull ?? context.MessageSid ?? "unknown";
-      api.logger.info(
-        `Slack relay dispatch observed provider=${provider} originatingChannel=${originatingChannel} nativeChannel=${nativeChannelId} message=${messageId}`,
-      );
-      const message: InboundSlackMessage = {
-        channel: context.OriginatingChannel ?? context.Provider ?? "",
-        content: context.BodyForCommands ?? context.RawBody ?? context.Body ?? "",
-        isGroup: context.ChatType !== "direct",
-        ...(context.NativeChannelId ? { conversationId: context.NativeChannelId } : {}),
-        ...(context.SenderId ? { senderId: context.SenderId } : {}),
-        ...(context.SenderName ? { senderName: context.SenderName } : {}),
-        ...(context.MessageSidFull ?? context.MessageSid
-          ? { messageId: context.MessageSidFull ?? context.MessageSid }
-          : {}),
-        ...(context.Timestamp ? { timestamp: context.Timestamp } : {}),
-        ...(context.WasMentioned !== undefined ? { wasMentioned: context.WasMentioned } : {}),
-        ...(context.MessageThreadId !== undefined
-          ? { threadId: String(context.MessageThreadId) }
-          : {}),
-      };
-
-      if (message.channel !== "slack") return;
-      const handled = {
-        handled: true,
-        queuedFinal: false,
-        counts: { tool: 0, block: 0, final: 0 },
-      };
-      if (isSystemMessage(message)) return handled;
+    const observeMessage = (message: InboundSlackMessage) => {
+      if (message.channel !== "slack" || isSystemMessage(message)) return;
 
       const directlyTargeted = isTargetedMessage(
         message,
@@ -102,9 +73,9 @@ export default definePluginEntry({
         && !isDirectMessage(message)
         && isThreadReply(message)
         && Boolean(message.conversationId && message.threadId);
-      if (!directlyTargeted && !needsThreadSubscriptionCheck) return handled;
+      if (!directlyTargeted && !needsThreadSubscriptionCheck) return;
 
-      const eventId = relayEventId(message);
+      const initialEventId = relayEventId(message);
       const targetReason = directlyTargeted
         ? isDirectMessage(message)
           ? "dm"
@@ -112,10 +83,17 @@ export default definePluginEntry({
             ? "mention-or-notify-all-channel"
             : "mention"
         : "thread-subscription-check";
-      api.logger.info(`Slack relay candidate ${eventId} reason=${targetReason}`);
+      api.logger.info(`Slack relay candidate ${initialEventId} reason=${targetReason}`);
 
       queue.enqueue(async () => {
+        let eventId = initialEventId;
         try {
+          if (isDirectMessage(message) && message.conversationId?.startsWith("U")) {
+            message.conversationId = await dmChannels.getChannelId(message.conversationId);
+            eventId = relayEventId(message);
+            api.logger.info(`Slack relay DM channel resolved ${eventId}`);
+          }
+
           const currentPresence = await presence.getPresence();
           if (currentPresence === "active") {
             api.logger.info(`Slack relay skipped ${eventId} reason=presence-active`);
@@ -197,8 +175,35 @@ export default definePluginEntry({
           api.logger.error(`Slack relay failed ${eventId}: ${errorMessage(error)}`);
         }
       });
+    };
 
-      return handled;
+    api.on("message_received", (event, context) => {
+      const metadata = event.metadata ?? {};
+      const conversationId = context.conversationId;
+      observeMessage({
+        channel: context.channelId,
+        content: event.content,
+        isGroup: !Boolean(conversationId?.startsWith("U") || conversationId?.startsWith("D")),
+        ...(conversationId ? { conversationId } : {}),
+        ...(event.senderId ? { senderId: event.senderId } : {}),
+        ...(typeof metadata.senderName === "string" ? { senderName: metadata.senderName } : {}),
+        ...(event.messageId ? { messageId: event.messageId } : {}),
+        ...(event.timestamp ? { timestamp: event.timestamp } : {}),
+        ...(event.content.includes(`<@${config.slackUserId}>`) ? { wasMentioned: true } : {}),
+        ...(event.threadId !== undefined ? { threadId: String(event.threadId) } : {}),
+        metadata,
+      });
+    }, { priority: 100 });
+
+    api.on("before_dispatch", (event) => {
+      if (event.channel !== "slack") return;
+      return { handled: true };
+    }, { priority: 100 });
+
+    api.on("message_sending", (_event, context) => {
+      if (context.channelId !== "slack") return;
+      api.logger.warn("Slack relay blocked an outbound Slack message");
+      return { cancel: true, cancelReason: "slack-translation-relay-read-only" };
     }, { priority: 100 });
 
     api.logger.info("Slack Translation Relay registered");

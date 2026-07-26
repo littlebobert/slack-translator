@@ -89,7 +89,8 @@ export class SlackDmChannelCache {
   ) {}
 
   async getChannelId(peerUserId: string): Promise<string> {
-    const cached = this.entries.get(peerUserId);
+    const normalizedPeerUserId = peerUserId.trim().toUpperCase();
+    const cached = this.entries.get(normalizedPeerUserId);
     if (cached) return cached;
 
     let cursor = "";
@@ -100,15 +101,18 @@ export class SlackDmChannelCache {
         channels?: Array<{ id?: string; user?: string }>;
         response_metadata?: { next_cursor?: string };
       }>("conversations.list", this.token, params, this.timeoutMs);
-      const channel = result.channels?.find((entry) => entry.user === peerUserId && entry.id);
+      const channel = result.channels?.find(
+        (entry) => entry.user?.toUpperCase() === normalizedPeerUserId && entry.id,
+      );
       if (channel?.id) {
-        this.entries.set(peerUserId, channel.id);
-        return channel.id;
+        const channelId = channel.id.toUpperCase();
+        this.entries.set(normalizedPeerUserId, channelId);
+        return channelId;
       }
       cursor = result.response_metadata?.next_cursor?.trim() ?? "";
     } while (cursor);
 
-    throw new Error(`Slack DM channel not found for user ${peerUserId}`);
+    throw new Error(`Slack DM channel not found for user ${normalizedPeerUserId}`);
   }
 }
 

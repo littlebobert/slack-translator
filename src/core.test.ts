@@ -57,6 +57,29 @@ describe("Slack message filtering", () => {
     expect(toRelayMessage(message(), config.slackUserId)).toEqual(relay);
   });
 
+  it("normalizes OpenClaw's prefixed DM conversation target", () => {
+    expect(toRelayMessage(message({
+      conversationId: "user:u123",
+      senderId: "uowner",
+      isGroup: false,
+    }), config.slackUserId)).toMatchObject({
+      channelId: "U123",
+      senderId: "uowner",
+      isDirect: true,
+    });
+  });
+
+  it("normalizes OpenClaw's prefixed channel target", () => {
+    expect(toRelayMessage(message({
+      conversationId: "channel:cloud",
+      content: "Deployment completed",
+      isGroup: true,
+    }), config.slackUserId, false, config.notifyAllChannelIds)).toMatchObject({
+      channelId: "CLOUD",
+      isChannelNotification: true,
+    });
+  });
+
   it("accepts and cleans a Japanese channel mention", () => {
     expect(toRelayMessage(message({
       conversationId: "C123",

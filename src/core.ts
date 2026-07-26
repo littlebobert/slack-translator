@@ -65,13 +65,20 @@ function metadataString(metadata: Record<string, unknown> | undefined, key: stri
   return typeof value === "string" && value ? value : undefined;
 }
 
+export function normalizeSlackId(value: string | undefined): string | undefined {
+  const normalized = value?.trim().split(":").at(-1)?.toUpperCase();
+  return normalized || undefined;
+}
+
 export function isSystemMessage(message: InboundSlackMessage): boolean {
   const subtype = metadataString(message.metadata, "subtype");
   return subtype !== undefined && SYSTEM_SUBTYPES.has(subtype);
 }
 
 export function isDirectMessage(message: InboundSlackMessage): boolean {
-  const channelId = message.conversationId ?? metadataString(message.metadata, "channelId") ?? "";
+  const channelId = normalizeSlackId(
+    message.conversationId ?? metadataString(message.metadata, "channelId"),
+  ) ?? "";
   const channelType = metadataString(message.metadata, "channelType")
     ?? metadataString(message.metadata, "channel_type");
   return !message.isGroup || channelType === "im" || channelId.startsWith("D");
@@ -91,13 +98,16 @@ export function isTargetedMessage(
     return false;
   }
   if (isDirectMessage(message)) return true;
-  const channelId = message.conversationId
-    ?? metadataString(message.metadata, "channelId")
-    ?? metadataString(message.metadata, "channel_id");
+  const channelId = normalizeSlackId(
+    message.conversationId
+      ?? metadataString(message.metadata, "channelId")
+      ?? metadataString(message.metadata, "channel_id"),
+  );
+  const normalizedNotifyAllChannelIds = notifyAllChannelIds.map((id) => normalizeSlackId(id));
   return message.wasMentioned === true
     || message.content.includes(`<@${slackUserId}>`)
     || (subscribedThread && isThreadReply(message))
-    || Boolean(channelId && notifyAllChannelIds.includes(channelId));
+    || Boolean(channelId && normalizedNotifyAllChannelIds.includes(channelId));
 }
 
 export function toRelayMessage(
@@ -108,9 +118,11 @@ export function toRelayMessage(
 ): RelayMessage | undefined {
   if (!isTargetedMessage(message, slackUserId, subscribedThread, notifyAllChannelIds)) return undefined;
 
-  const channelId = message.conversationId
-    ?? metadataString(message.metadata, "channelId")
-    ?? metadataString(message.metadata, "channel_id");
+  const channelId = normalizeSlackId(
+    message.conversationId
+      ?? metadataString(message.metadata, "channelId")
+      ?? metadataString(message.metadata, "channel_id"),
+  );
   const messageTs = message.messageId
     ?? metadataString(message.metadata, "messageTs")
     ?? metadataString(message.metadata, "ts")
@@ -130,7 +142,7 @@ export function toRelayMessage(
     isDirect: direct,
     isThreadReply: threadReply,
     isChannelNotification: !direct && !directMention && !threadReply
-      && notifyAllChannelIds.includes(channelId),
+      && notifyAllChannelIds.some((id) => normalizeSlackId(id) === channelId),
   };
 }
 

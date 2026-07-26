@@ -71,7 +71,7 @@ describe("Slack clients", () => {
     globalThis.fetch = fetchMock;
     const cache = new SlackDmChannelCache("xoxp-secret", 1000);
 
-    expect(await cache.getChannelId("U123")).toBe("D123");
+    expect(await cache.getChannelId("u123")).toBe("D123");
     expect(await cache.getChannelId("U123")).toBe("D123");
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];

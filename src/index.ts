@@ -13,6 +13,7 @@ import {
   isTargetedMessage,
   isThreadReply,
   normalizeConfig,
+  normalizeSlackId,
   processRelayMessage,
   toRelayMessage,
   TtlDeduplicator,
@@ -88,8 +89,10 @@ export default definePluginEntry({
       queue.enqueue(async () => {
         let eventId = initialEventId;
         try {
-          if (isDirectMessage(message) && message.conversationId?.startsWith("U")) {
-            message.conversationId = await dmChannels.getChannelId(message.conversationId);
+          if (isDirectMessage(message) && normalizeSlackId(message.conversationId)?.startsWith("U")) {
+            message.conversationId = await dmChannels.getChannelId(
+              normalizeSlackId(message.conversationId) ?? "",
+            );
             eventId = relayEventId(message);
             api.logger.info(`Slack relay DM channel resolved ${eventId}`);
           }
@@ -179,13 +182,17 @@ export default definePluginEntry({
 
     api.on("message_received", (event, context) => {
       const metadata = event.metadata ?? {};
-      const conversationId = context.conversationId;
+      const conversationId = normalizeSlackId(context.conversationId);
+      const senderId = normalizeSlackId(event.senderId);
+      api.logger.info(
+        `Slack relay hook observed channel=${context.channelId} conversationType=${conversationId?.[0] ?? "unknown"} message=${event.messageId ?? "unknown"}`,
+      );
       observeMessage({
         channel: context.channelId,
         content: event.content,
         isGroup: !Boolean(conversationId?.startsWith("U") || conversationId?.startsWith("D")),
         ...(conversationId ? { conversationId } : {}),
-        ...(event.senderId ? { senderId: event.senderId } : {}),
+        ...(senderId ? { senderId } : {}),
         ...(typeof metadata.senderName === "string" ? { senderName: metadata.senderName } : {}),
         ...(event.messageId ? { messageId: event.messageId } : {}),
         ...(event.timestamp ? { timestamp: event.timestamp } : {}),

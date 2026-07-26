@@ -5,6 +5,7 @@ vi.mock("node:child_process", () => ({ execFile: execFileMock }));
 
 import {
   getSlackPermalink,
+  isSlackThreadSubscribed,
   sendIMessage,
   SlackPresenceCache,
   SlackUserCache,
@@ -31,6 +32,30 @@ describe("Slack clients", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain("chat.getPermalink?channel=D123&message_ts=123.456");
     expect(init.headers).toEqual({ Authorization: "Bearer xoxp-secret" });
+  });
+
+  it("checks the authenticated user's thread subscription", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      messages: [{ ts: "123.000", subscribed: true }],
+    }), { status: 200 }));
+    globalThis.fetch = fetchMock;
+
+    await expect(isSlackThreadSubscribed("xoxp-secret", "C123", "123.000", 1000))
+      .resolves.toBe(true);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("conversations.replies?channel=C123&ts=123.000&limit=1");
+    expect(init.headers).toEqual({ Authorization: "Bearer xoxp-secret" });
+  });
+
+  it("treats an absent subscription flag as unsubscribed", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      messages: [{ ts: "123.000" }],
+    }), { status: 200 }));
+
+    await expect(isSlackThreadSubscribed("xoxp-secret", "C123", "123.000", 1000))
+      .resolves.toBe(false);
   });
 
   it("checks and caches the authenticated user's Slack presence", async () => {

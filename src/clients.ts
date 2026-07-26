@@ -65,6 +65,21 @@ export async function getSlackPermalink(
   return result.permalink;
 }
 
+export async function isSlackThreadSubscribed(
+  token: string,
+  channelId: string,
+  threadTs: string,
+  timeoutMs: number,
+): Promise<boolean> {
+  const result = await slackApi<{ messages?: Array<{ subscribed?: boolean }> }>(
+    "conversations.replies",
+    token,
+    new URLSearchParams({ channel: channelId, ts: threadTs, limit: "1" }),
+    timeoutMs,
+  );
+  return result.messages?.[0]?.subscribed === true;
+}
+
 export type SlackPresence = "active" | "away";
 
 export class SlackPresenceCache {

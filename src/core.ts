@@ -38,10 +38,18 @@ export function normalizeConfig(raw: Record<string, unknown>): RelayConfig {
     const value = raw[key];
     return typeof value === "number" && Number.isInteger(value) ? value : fallback;
   };
+  const stringArray = (key: string): string[] => {
+    const value = raw[key];
+    if (!Array.isArray(value)) return [];
+    return [...new Set(value.filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter(Boolean))];
+  };
 
   return {
     slackUserId: stringValue("slackUserId"),
     slackUserTokenEnv: stringValue("slackUserTokenEnv", "SLACK_USER_TOKEN"),
+    notifyAllChannelIds: stringArray("notifyAllChannelIds"),
     imessageRecipient: stringValue("imessageRecipient"),
     imsgCliPath: stringValue("imsgCliPath", "/opt/homebrew/opt/imsg/bin/imsg"),
     notificationTitle: stringValue("notificationTitle", "Slack while away"),
@@ -69,19 +77,36 @@ export function isDirectMessage(message: InboundSlackMessage): boolean {
   return !message.isGroup || channelType === "im" || channelId.startsWith("D");
 }
 
-export function isTargetedMessage(message: InboundSlackMessage, slackUserId: string): boolean {
+export function isThreadReply(message: InboundSlackMessage): boolean {
+  return Boolean(message.threadId && message.threadId !== message.messageId);
+}
+
+export function isTargetedMessage(
+  message: InboundSlackMessage,
+  slackUserId: string,
+  subscribedThread = false,
+  notifyAllChannelIds: readonly string[] = [],
+): boolean {
   if (message.channel !== "slack" || isSystemMessage(message)) {
     return false;
   }
   if (isDirectMessage(message)) return true;
-  return message.wasMentioned === true || message.content.includes(`<@${slackUserId}>`);
+  const channelId = message.conversationId
+    ?? metadataString(message.metadata, "channelId")
+    ?? metadataString(message.metadata, "channel_id");
+  return message.wasMentioned === true
+    || message.content.includes(`<@${slackUserId}>`)
+    || (subscribedThread && isThreadReply(message))
+    || Boolean(channelId && notifyAllChannelIds.includes(channelId));
 }
 
 export function toRelayMessage(
   message: InboundSlackMessage,
   slackUserId: string,
+  subscribedThread = false,
+  notifyAllChannelIds: readonly string[] = [],
 ): RelayMessage | undefined {
-  if (!isTargetedMessage(message, slackUserId)) return undefined;
+  if (!isTargetedMessage(message, slackUserId, subscribedThread, notifyAllChannelIds)) return undefined;
 
   const channelId = message.conversationId
     ?? metadataString(message.metadata, "channelId")
@@ -93,13 +118,19 @@ export function toRelayMessage(
   if (!channelId || !messageTs || !message.senderId) return undefined;
 
   const mentionPattern = new RegExp(`<@${escapeRegExp(slackUserId)}>`, "g");
+  const direct = isDirectMessage(message);
+  const threadReply = isThreadReply(message);
+  const directMention = message.wasMentioned === true || message.content.includes(`<@${slackUserId}>`);
   return {
     channelId,
     messageTs,
     senderId: message.senderId,
     ...(message.senderName ? { senderName: message.senderName } : {}),
     text: message.content.replace(mentionPattern, "").trim(),
-    isDirect: isDirectMessage(message),
+    isDirect: direct,
+    isThreadReply: threadReply,
+    isChannelNotification: !direct && !directMention && !threadReply
+      && notifyAllChannelIds.includes(channelId),
   };
 }
 
@@ -127,7 +158,13 @@ export function buildNotificationInput(
   resolvedSenderName?: string,
 ): NotificationInput {
   const sender = resolvedSenderName ?? message.senderName ?? message.senderId;
-  const context = message.isDirect ? "DM" : "Mention";
+  const context = message.isDirect
+    ? "DM"
+    : message.isThreadReply
+      ? "Thread reply"
+      : message.isChannelNotification
+        ? "Channel post"
+        : "Mention";
   const body = translation
     ? translation
     : "Translation failed. Open the original message in Slack.";

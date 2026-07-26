@@ -1,6 +1,7 @@
 export interface RelayConfig {
   slackUserId: string;
   slackUserTokenEnv: string;
+  notifyAllChannelIds: string[];
   imessageRecipient: string;
   imsgCliPath: string;
   notificationTitle: string;
@@ -20,6 +21,7 @@ export interface InboundSlackMessage {
   timestamp?: number;
   isGroup: boolean;
   wasMentioned?: boolean;
+  threadId?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -30,6 +32,8 @@ export interface RelayMessage {
   senderName?: string;
   text: string;
   isDirect: boolean;
+  isThreadReply: boolean;
+  isChannelNotification: boolean;
 }
 
 export interface SlackIdentity {

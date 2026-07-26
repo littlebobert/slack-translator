@@ -1,7 +1,7 @@
 {
   "id": "slack-translation-relay",
   "name": "Slack Translation Relay",
-  "description": "Forwards Slack DMs and mentions through iMessage while you are away, translating Japanese messages without replying in Slack.",
+  "description": "Forwards notification-worthy Slack messages through iMessage while you are away, translating Japanese messages without replying in Slack.",
   "uiHints": {
     "slackUserId": {
       "label": "Your Slack user ID",
@@ -9,6 +9,9 @@
     },
     "slackUserTokenEnv": {
       "label": "Slack user token environment variable"
+    },
+    "notifyAllChannelIds": {
+      "label": "Channels that notify for every new post"
     },
     "imessageRecipient": {
       "label": "iMessage recipient",
@@ -30,6 +33,15 @@
       "slackUserTokenEnv": {
         "type": "string",
         "default": "SLACK_USER_TOKEN"
+      },
+      "notifyAllChannelIds": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "pattern": "^[CG][A-Z0-9]+$"
+        },
+        "uniqueItems": true,
+        "default": []
       },
       "imessageRecipient": {
         "type": "string",

@@ -13,6 +13,7 @@ import type { InboundSlackMessage, RelayConfig, RelayMessage } from "./types.js"
 const config: RelayConfig = {
   slackUserId: "UOWNER",
   slackUserTokenEnv: "SLACK_USER_TOKEN",
+  notifyAllChannelIds: ["CLOUD"],
   imessageRecipient: "+15555550123",
   imsgCliPath: "/opt/homebrew/opt/imsg/bin/imsg",
   notificationTitle: "Slack translation",
@@ -42,6 +43,8 @@ const relay: RelayMessage = {
   senderName: "Aiko",
   text: "明日の会議は10時です",
   isDirect: true,
+  isThreadReply: false,
+  isChannelNotification: false,
 };
 
 describe("Slack message filtering", () => {
@@ -61,6 +64,49 @@ describe("Slack message filtering", () => {
       isGroup: true,
       wasMentioned: true,
     }), config.slackUserId)?.text).toBe("資料を確認してください");
+  });
+
+  it("accepts a subscribed channel thread reply", () => {
+    expect(toRelayMessage(message({
+      conversationId: "C123",
+      content: "資料を更新しました",
+      isGroup: true,
+      messageId: "124.000",
+      threadId: "123.000",
+    }), config.slackUserId, true)).toMatchObject({
+      isDirect: false,
+      isThreadReply: true,
+      text: "資料を更新しました",
+    });
+  });
+
+  it("rejects an unsubscribed channel thread reply", () => {
+    expect(toRelayMessage(message({
+      conversationId: "C123",
+      isGroup: true,
+      messageId: "124.000",
+      threadId: "123.000",
+    }), config.slackUserId, false)).toBeUndefined();
+  });
+
+  it("accepts every post in an explicitly configured channel", () => {
+    expect(toRelayMessage(message({
+      conversationId: "CLOUD",
+      content: "Deployment completed",
+      isGroup: true,
+    }), config.slackUserId, false, config.notifyAllChannelIds)).toMatchObject({
+      text: "Deployment completed",
+      isChannelNotification: true,
+    });
+  });
+
+  it("does not treat a mention in an all-message channel as a generic channel post", () => {
+    expect(toRelayMessage(message({
+      conversationId: "CLOUD",
+      content: "<@UOWNER> Deployment failed",
+      isGroup: true,
+      wasMentioned: true,
+    }), config.slackUserId, false, config.notifyAllChannelIds)?.isChannelNotification).toBe(false);
   });
 
   it("accepts an English DM for pass-through forwarding", () => {
@@ -100,6 +146,26 @@ describe("notification construction", () => {
       message: "Tomorrow's meeting is at 10.",
       url: "https://slack.test/message",
     });
+  });
+
+  it("labels subscribed thread replies", () => {
+    const input = buildNotificationInput(
+      config,
+      { ...relay, isDirect: false, isThreadReply: true },
+      "The document was updated.",
+      "https://slack.test/thread-reply",
+    );
+    expect(input.title).toBe("From Slack: Thread reply from Aiko:");
+  });
+
+  it("labels posts from channels configured for every-message notifications", () => {
+    const input = buildNotificationInput(
+      config,
+      { ...relay, isDirect: false, isChannelNotification: true },
+      "Deployment completed.",
+      "https://slack.test/channel-post",
+    );
+    expect(input.title).toBe("From Slack: Channel post from Aiko:");
   });
 
   it("builds a useful fallback when translation fails", () => {

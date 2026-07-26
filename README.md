@@ -1,6 +1,6 @@
-# Slack Translation Relay
+# Tsugu
 
-An OpenClaw plugin for a Mac that watches Slack and, while you are away, forwards messages that approximate your Slack mobile notifications through iMessage: DMs, mentions, replies in threads you follow, and every post in explicitly configured channels. Japanese messages are translated to English, and each iMessage includes a link to the original Slack message.
+**Tsugu** (継ぐ, “to pass on”) is an OpenClaw plugin for a Mac that watches Slack and, while you are away, forwards messages that approximate your Slack mobile notifications through iMessage: DMs, mentions, replies in threads you follow, and every post in explicitly configured channels. Japanese messages are translated to English, and each iMessage includes a link to the original Slack message.
 
 ## Security and workspace approval
 

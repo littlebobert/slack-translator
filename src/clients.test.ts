@@ -126,7 +126,7 @@ describe("iMessage client", () => {
       "--to",
       "+15555550123",
       "--text",
-      "Slack translation\nTranslated text; $(touch /tmp/unsafe)\nLink: https://workspace.slack.com/message",
+      "Slack translation\nTranslated text; $(touch /tmp/unsafe)\nLink: https://workspace.slack.com/message (Slack)",
     ]);
     expect(options).toMatchObject({ timeout: 1000 });
   });

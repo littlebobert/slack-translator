@@ -183,7 +183,7 @@ export async function sendIMessage(
   const text = [
     input.title,
     input.message,
-    ...(input.url ? [`Link: ${input.url}`] : []),
+    ...(input.url ? [`Link: ${input.url} (Slack)`] : []),
   ].join("\n");
   try {
     await execFileAsync(cliPath, ["send", "--to", recipient, "--text", text], {

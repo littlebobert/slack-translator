@@ -1,20 +1,20 @@
 # Slack Translation Relay
 
-An OpenClaw plugin for a Mac mini that watches Slack as an approved user identity. While Slack reports you active, it stays quiet. While Slack reports you away, it forwards DMs and channel mentions through iMessage, translating Japanese messages with OpenClaw's configured model and passing other languages through unchanged. Each iMessage includes a link to the exact Slack message. The plugin never replies in Slack.
+An OpenClaw plugin for a Mac that watches Slack and while you are away, it forwards DMs and mentions through iMessage, translating Japanese to English. Each iMessage includes a link to the original Slack message.
 
 ## Security and workspace approval
 
-This integration uses Slack's supported user-scoped Events API. It does not copy cookies, scrape the Slack UI, or hide its access. Your Slack workspace administrator must approve the app and its access to your DMs and channel history. Confirm that sending work-message text to OpenClaw's configured model and iMessage complies with your employer's policies.
+This integration uses Slack's supported user-scoped Events API. Your Slack workspace administrator must approve the app and its access to your DMs and channel history.
 
 Socket Mode opens an outbound WebSocket from the Mac mini, so no public inbound endpoint is required.
 
 ## Prerequisites
 
-- OpenClaw `2026.5.17` or newer running on the Mac mini
+- OpenClaw `2026.7.2-beta.4` or newer with Slack user-identity support
 - Permission to install or request approval for a Slack app
-- Messages signed in on the Mac mini, with `imsg` installed and allowed to automate Messages
+- Messages signed in on the Mac, with `imsg` installed and allowed to automate Messages
 - An iMessage-capable phone number or Apple Account email to receive relayed messages
-- The Mac mini configured to stay awake and restart OpenClaw after reboot
+- The Mac configured to stay awake and restart OpenClaw after reboot
 
 ## 1. Create the Slack app
 

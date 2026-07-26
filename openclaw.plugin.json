@@ -2,6 +2,9 @@
   "id": "slack-translation-relay",
   "name": "Slack Translation Relay",
   "description": "Forwards notification-worthy Slack messages through iMessage while you are away, translating Japanese messages without replying in Slack.",
+  "activation": {
+    "onCapabilities": ["hook"]
+  },
   "uiHints": {
     "slackUserId": {
       "label": "Your Slack user ID",

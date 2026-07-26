@@ -77,7 +77,7 @@ npm install
 npm test
 npm run build
 npm pack
-openclaw plugins install npm-pack:./openclaw-slack-translation-relay-0.4.0.tgz --force
+openclaw plugins install npm-pack:./openclaw-slack-translation-relay-0.4.1.tgz --force
 ```
 
 Add the plugin entry to `~/.openclaw/openclaw.json`:
@@ -135,7 +135,7 @@ Japanese text containing Hiragana, Katakana, or Han characters is translated int
 
 Every Slack event reaching the hook is claimed silently so OpenClaw does not answer in Slack. For an unmentioned channel thread reply, the plugin calls `conversations.replies` with your user token and forwards it only when the parent message has `subscribed: true`. Since Slack does not expose whether a channel is set to **All new messages**, the plugin uses the explicit `notifyAllChannelIds` mirror. Slack retries are deduplicated by conversation ID and message timestamp. Model and Slack API calls use bounded retries and timeouts; `imsg` delivery has a bounded timeout. If Japanese translation fails, the plugin sends a short failure message with the Slack link when available. If the presence check fails, the plugin fails closed and sends no iMessage, avoiding duplicate alerts while your state is unknown.
 
-The iMessage uses a compact format: `From Slack: DM from <sender>:`, `Mention from <sender>:`, `Thread reply from <sender>:`, or `Channel post from <sender>:`, the translated or unchanged message on the next line, and `Link: <Slack permalink>` on the final line. Long bodies are truncated to 8,000 UTF-8 bytes. Message bodies and credentials are never written to plugin logs.
+The iMessage uses a compact format: `From Slack: DM from <sender>:`, `Mention from <sender>:`, `Thread reply from <sender>:`, or `Channel post from <sender>:`, the translated or unchanged message on the next line, and `Link: <Slack permalink>` on the final line. Long bodies are truncated to 8,000 UTF-8 bytes. Message bodies and credentials are never written to plugin logs. Candidate, skip, failure, and success diagnostics include only Slack channel/message IDs and decision reasons such as `presence-active`, `thread-not-subscribed`, and `duplicate`.
 
 ## Validation checklist
 
@@ -171,6 +171,7 @@ Slack does not expose an API that lets this plugin dynamically disable Slack's o
 - **No Slack events:** confirm the app uses user event subscriptions, Socket Mode is enabled, the `xapp` token has `connections:write`, and the app was reinstalled after scopes changed.
 - **No subscribed thread replies:** confirm `channels.slack.requireMention` is `false`, the Slack app has the matching `*:history` scope for the channel type, and Slack shows **Get notified about new replies** enabled for that thread.
 - **Missing all-message channel posts:** add the exact `C...` or `G...` channel ID to `notifyAllChannelIds`; Slack's supported API cannot synchronize this preference automatically.
+- **Message was not relayed:** watch for `Slack relay candidate`, `Slack relay skipped`, `Slack relay failed`, and `Slack relay forwarded`. These lines identify the decision without logging message content.
 - **`missing_scope`:** compare the installed app's user scopes with [`config/slack-app-manifest.json`](config/slack-app-manifest.json), then reinstall it.
 - **No translation:** verify OpenClaw's default agent has a working configured model.
 - **`iMessage delivery failed`:** run the documented `imsg send` test as the same macOS user and GUI session as OpenClaw, then verify Full Disk Access and Messages Automation permissions. Confirm `imsgCliPath` and `imessageRecipient` are exact.

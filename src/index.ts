@@ -32,6 +32,15 @@ function extractCompletionText(result: { text: string }): string {
   return text;
 }
 
+function errorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : "unknown error";
+  return message.replace(/[\r\n\t]+/g, " ").slice(0, 300);
+}
+
+function relayEventId(message: InboundSlackMessage): string {
+  return `channel=${message.conversationId ?? "unknown"} message=${message.messageId ?? "unknown"}`;
+}
+
 export default definePluginEntry({
   id: "slack-translation-relay",
   name: "Slack Translation Relay",
@@ -78,10 +87,23 @@ export default definePluginEntry({
         && Boolean(message.conversationId && message.threadId);
       if (!directlyTargeted && !needsThreadSubscriptionCheck) return { handled: true };
 
+      const eventId = relayEventId(message);
+      const targetReason = directlyTargeted
+        ? isDirectMessage(message)
+          ? "dm"
+          : config.notifyAllChannelIds.includes(message.conversationId ?? "")
+            ? "mention-or-notify-all-channel"
+            : "mention"
+        : "thread-subscription-check";
+      api.logger.info(`Slack relay candidate ${eventId} reason=${targetReason}`);
+
       queue.enqueue(async () => {
         try {
           const currentPresence = await presence.getPresence();
-          if (currentPresence === "active") return;
+          if (currentPresence === "active") {
+            api.logger.info(`Slack relay skipped ${eventId} reason=presence-active`);
+            return;
+          }
 
           const subscribedThread = needsThreadSubscriptionCheck
             ? await isSlackThreadSubscribed(
@@ -91,16 +113,27 @@ export default definePluginEntry({
               config.requestTimeoutMs,
             )
             : false;
+          if (needsThreadSubscriptionCheck && !subscribedThread) {
+            api.logger.info(`Slack relay skipped ${eventId} reason=thread-not-subscribed`);
+            return;
+          }
+
           const relayMessage = toRelayMessage(
             message,
             config.slackUserId,
             subscribedThread,
             config.notifyAllChannelIds,
           );
-          if (!relayMessage) return;
+          if (!relayMessage) {
+            api.logger.warn(`Slack relay skipped ${eventId} reason=invalid-message-metadata`);
+            return;
+          }
 
           const dedupeKey = `${relayMessage.channelId}:${relayMessage.messageTs}`;
-          if (!deduplicator.accept(dedupeKey)) return;
+          if (!deduplicator.accept(dedupeKey)) {
+            api.logger.info(`Slack relay skipped ${eventId} reason=duplicate`);
+            return;
+          }
 
           await processRelayMessage(config, relayMessage, {
             translate: (text) => withRetry(async () => {
@@ -142,9 +175,9 @@ export default definePluginEntry({
               logger(text);
             },
           });
-          api.logger.info("Forwarded one Slack message through iMessage while user was away");
-        } catch {
-          api.logger.error("Failed to process an away-mode Slack message for iMessage delivery");
+          api.logger.info(`Slack relay forwarded ${eventId} through iMessage`);
+        } catch (error) {
+          api.logger.error(`Slack relay failed ${eventId}: ${errorMessage(error)}`);
         }
       });
 

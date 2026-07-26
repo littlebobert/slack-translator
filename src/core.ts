@@ -129,12 +129,12 @@ export function buildNotificationInput(
   const sender = resolvedSenderName ?? message.senderName ?? message.senderId;
   const context = message.isDirect ? "DM" : "Mention";
   const body = translation
-    ? `${context} from ${sender}\n\n${translation}`
-    : `${context} from ${sender}\n\nTranslation failed. Open the original message in Slack.`;
+    ? translation
+    : "Translation failed. Open the original message in Slack.";
   return {
-    title: truncateUtf8(config.notificationTitle, 250),
+    title: truncateUtf8(`From Slack: ${context} from ${sender}:`, 250),
     message: truncateUtf8(body, IMESSAGE_TEXT_LIMIT),
-    ...(permalink ? { url: permalink, urlTitle: "Open in Slack" } : {}),
+    ...(permalink ? { url: permalink } : {}),
   };
 }
 

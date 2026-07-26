@@ -74,7 +74,7 @@ npm install
 npm test
 npm run build
 npm pack
-openclaw plugins install npm-pack:./openclaw-slack-translation-relay-0.2.1.tgz --force
+openclaw plugins install npm-pack:./openclaw-slack-translation-relay-0.2.2.tgz --force
 ```
 
 Add the plugin entry to `~/.openclaw/openclaw.json`:
@@ -129,7 +129,7 @@ Japanese text containing Hiragana, Katakana, or Han characters is translated int
 
 The event is claimed silently so OpenClaw does not answer in Slack. Slack retries are deduplicated by conversation ID and message timestamp. Model and Slack API calls use bounded retries and timeouts; `imsg` delivery has a bounded timeout. If Japanese translation fails, the plugin sends a short failure message with the Slack link when available. If the presence check fails, the plugin fails closed and sends no iMessage, avoiding duplicate alerts while your state is unknown.
 
-The iMessage body includes the configured title, translated or unchanged message, and Slack permalink. Long bodies are truncated to 8,000 UTF-8 bytes. Message bodies and credentials are never written to plugin logs.
+The iMessage uses a compact format: `From Slack: DM from <sender>:` (or `Mention from <sender>:`), the translated or unchanged message on the next line, and `Link: <Slack permalink>` on the final line. Long bodies are truncated to 8,000 UTF-8 bytes. Message bodies and credentials are never written to plugin logs.
 
 ## Validation checklist
 

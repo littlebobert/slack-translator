@@ -96,10 +96,9 @@ describe("deduplication", () => {
 describe("notification construction", () => {
   it("preserves a permalink and resolved sender", () => {
     expect(buildNotificationInput(config, relay, "Tomorrow's meeting is at 10.", "https://slack.test/message", "Aiko S.")).toEqual({
-      title: "Slack translation",
-      message: "DM from Aiko S.\n\nTomorrow's meeting is at 10.",
+      title: "From Slack: DM from Aiko S.:",
+      message: "Tomorrow's meeting is at 10.",
       url: "https://slack.test/message",
-      urlTitle: "Open in Slack",
     });
   });
 

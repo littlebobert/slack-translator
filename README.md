@@ -48,7 +48,21 @@ Configure the Slack channel in `~/.openclaw/openclaw.json`. Use secret reference
 }
 ```
 
-## 3. Install this plugin
+## 3. Set up Pushover
+
+[Pushover](https://pushover.net/) is the push-notification service that delivers the relayed Slack messages to your phone. It requires a Pushover account, the mobile app, and two credentials: a user key that identifies your account and an application API token that authorizes this relay to send notifications.
+
+1. Install **Pushover Notifications** from the iOS App Store or Google Play.
+2. Create or sign in to your Pushover account and register the phone when prompted.
+3. Sign in to the [Pushover dashboard](https://pushover.net/). Copy **Your User Key**; use it as `PUSHOVER_USER_KEY`.
+4. At the bottom of the dashboard, select **Create an Application/API Token**.
+5. Name the application something recognizable, such as `OpenClaw Slack Relay`, select **Application**, and create it.
+6. Copy the resulting **API Token/Key**; use it as `PUSHOVER_APP_TOKEN`.
+7. Keep both credentials private. Store them in the environment used by the OpenClaw service rather than directly in `openclaw.json`.
+
+Pushover may require a one-time mobile-app purchase after its trial period. Keep Pushover notifications enabled in the phone's system settings so relayed messages can appear.
+
+## 4. Install this plugin
 
 From this repository:
 
